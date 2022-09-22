@@ -1,58 +1,116 @@
 from paraview.simple import *
+
 from paraview import print_info
 
-# catalyst options
-from paraview.catalyst import Options
-options = Options()
-options.EnableCatalystLive = 1
+# ----------------------------------------------------------------
+# setup views used in the visualization
+# ----------------------------------------------------------------
 
-# print start marker
-print_info("begin '%s'", __name__)
-
-# directory under which to save all extracts
-# generated using Extractors defined in the pipeline
-# (optional, but recommended)
-options.ExtractsOutputDirectory = '.'
-SaveExtractsUsingCatalystOptions(options)
-
-view = CreateRenderView()
-# when using Fides, registrationName is always 'fides'
-producer = TrivialProducer(registrationName='fides')
-display = Show(producer)
-view.ResetCamera()
-ColorBy(display, ('POINTS', 'U'))
-display.RescaleTransferFunctionToDataRange(True, False)
-display.SetScalarBarVisibility(view, True)
-transFunc = GetColorTransferFunction('U')
-transFunc.RescaleOnVisibilityChange = 1
-
-display.SetRepresentationType('Surface')
-
-clip = Clip(registrationName="clip1", Input=producer)
-clip.ClipType = 'Plane'
-clip.Scalars = ['POINTS', 'U']
-clip.ClipType.Origin = [1.5, 1.5, 1.5]
-clip.ClipType.Normal = [0.0, 1.0, 0.0]
-clipDisplay = Show(clip, view, 'UnstructuredGridRepresentation')
-
-Hide(producer, view)
-view.ResetCamera()
+# Create a new 'Render View'
+renderView1 = CreateView('RenderView')
 
 camera = GetActiveCamera()
 camera.Azimuth(45)
 camera.Elevation(45)
 
-# the extractor will save the view on each time step
-extractor = CreateExtractor('PNG', view, registrationName='PNG1')
-extractor.Writer.FileName = 'output-{timestep}.png'
-extractor.Writer.ImageResolution = [800, 800]
+SetActiveView(None)
 
+# ----------------------------------------------------------------
+# setup view layouts
+# ----------------------------------------------------------------
+
+# create new layout object 'Layout #1'
+layout1 = CreateLayout(name='Layout #1')
+layout1.AssignView(0, renderView1)
+layout1.SetSize(824, 656)
+
+# ----------------------------------------------------------------
+# restore active view
+SetActiveView(renderView1)
+# ----------------------------------------------------------------
+
+# ----------------------------------------------------------------
+# setup the data processing pipelines
+# ----------------------------------------------------------------
+
+producer = TrivialProducer(registrationName='fides')
+
+# show data from gsbp
+fDisplay = Show(producer, renderView1, 'UniformGridRepresentation')
+renderView1.ResetCamera()
+
+# get color transfer function/color map for 'U'
+uLUT = GetColorTransferFunction('U')
+#uLUT.AutomaticRescaleRangeMode = 'Grow and update every timestep'
+#uLUT.RescaleOnVisibilityChange = 1
+
+# trace defaults for the display properties.
+fDisplay.Representation = 'Surface'
+fDisplay.ColorArrayName = ['POINTS', 'U']
+fDisplay.SetScaleArray = ['POINTS', 'U']
+fDisplay.ScaleTransferFunction = 'PiecewiseFunction'
+fDisplay.OpacityArray = ['POINTS', 'U']
+fDisplay.OpacityTransferFunction = 'PiecewiseFunction'
+fDisplay.LookupTable = uLUT
+# init the 'PiecewiseFunction' selected for 'ScaleTransferFunction'
+fDisplay.ScaleTransferFunction.Points = [0.14830323427621842, 0.0, 0.5, 0.0, 0.9988113230834544, 1.0, 0.5, 0.0]
+
+
+uLUTColorBar = GetScalarBar(uLUT, renderView1)
+uLUTColorBar.Title = 'U'
+uLUTColorBar.ComponentTitle = ''
+
+# show color legend
+fDisplay.SetScalarBarVisibility(renderView1, True)
+
+#clip = Clip(registrationName="clip1", Input=producer)
+#clip.ClipType = 'Plane'
+#clip.Scalars = ['POINTS', 'U']
+#clip.ClipType.Origin = [1.5, 1.5, 1.5]
+#clip.ClipType.Normal = [0.0, 1.0, 0.0]
+
+# ----------------------------------------------------------------
+# setup extractors
+# ----------------------------------------------------------------
+
+# create extractor
+pNG1 = CreateExtractor('PNG', renderView1, registrationName='PNG1')
+# trace defaults for the extractor.
+pNG1.Trigger = 'TimeStep'
+
+# init the 'PNG' selected for 'Writer'
+pNG1.Writer.FileName = 'output_{timestep:06d}.png'
+pNG1.Writer.ImageResolution = [800, 800]
+pNG1.Writer.Format = 'PNG'
+
+# ----------------------------------------------------------------
+# restore active source
+SetActiveSource(pNG1)
+# ----------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# Catalyst options
+from paraview import catalyst
+options = catalyst.Options()
+options.GlobalTrigger = 'TimeStep'
+options.EnableCatalystLive = 1
+options.CatalystLiveTrigger = 'TimeStep'
+options.ExtractsOutputDirectory = '/tmp'
+#options.ExtractsOutputDirectory = '.'
+
+# print start marker
+print_info("begin '%s'", __name__)
 
 def catalyst_execute(info):
     print_info("in '%s::catalyst_execute'", __name__)
     global producer
-    clip.UpdatePipeline()
-    print("updating pipeline and saving image")
+    producer.UpdatePipeline()
+    #global fDisplay
+    #ColorBy(fDisplay, ('POINTS', 'U'))
+    #fDisplay.RescaleTransferFunctionToDataRange(False, True)
+    #fDisplay.RescaleTransferFunctionToDataRange(True, False)
+    #clip.UpdatePipeline()
+    #print("updating pipeline and saving image")
 
     #print("-----------------------------------")
     #print("executing (cycle={}, time={})".format(info.cycle, info.time))
@@ -61,5 +119,10 @@ def catalyst_execute(info):
     #print("V-range:", producer.PointData['V'].GetRange(0))
 
 
-# print end marker
-print_info("end '%s'", __name__)
+# ------------------------------------------------------------------------------
+if __name__ == '__main__':
+    print('in __main__()')
+    from paraview.simple import SaveExtractsUsingCatalystOptions
+    # Code for non in-situ environments; if executing in post-processing
+    # i.e. non-Catalyst mode, let's generate extracts using Catalyst options
+    SaveExtractsUsingCatalystOptions(options)
