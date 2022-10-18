@@ -63,6 +63,18 @@ uLUTColorBar.ComponentTitle = ''
 # show color legend
 fDisplay.SetScalarBarVisibility(renderView1, True)
 
+contour1 = Contour(registrationName='Contour1', Input=producer)
+contour1.ContourBy = ['POINTS', 'U']
+contour1.Isosurfaces = [0.3]
+contour1.PointMergeMethod = 'Uniform Binning'
+
+contour1Display = Show(contour1, renderView1, 'GeometryRepresentation')
+
+contour1Display.Representation = 'Surface'
+contour1Display.ColorArrayName = ['POINTS', 'U']
+
+Hide(producer, renderView1)
+
 #clip = Clip(registrationName="clip1", Input=producer)
 #clip.ClipType = 'Plane'
 #clip.Scalars = ['POINTS', 'U']
@@ -103,8 +115,8 @@ print_info("begin '%s'", __name__)
 
 def catalyst_execute(info):
     print_info("in '%s::catalyst_execute'", __name__)
-    global producer
-    producer.UpdatePipeline()
+    global contour1
+    contour1.UpdatePipeline()
     #global fDisplay
     #ColorBy(fDisplay, ('POINTS', 'U'))
     #fDisplay.RescaleTransferFunctionToDataRange(False, True)
