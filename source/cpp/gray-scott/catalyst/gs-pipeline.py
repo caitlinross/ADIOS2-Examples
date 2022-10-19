@@ -40,46 +40,49 @@ fDisplay = Show(producer, renderView1, 'UniformGridRepresentation')
 renderView1.ResetCamera()
 
 # get color transfer function/color map for 'U'
-uLUT = GetColorTransferFunction('U')
-#uLUT.AutomaticRescaleRangeMode = 'Grow and update every timestep'
-#uLUT.RescaleOnVisibilityChange = 1
+uLUT = GetColorTransferFunction('V')
+uLUT.AutomaticRescaleRangeMode = 'Clamp and update every timestep'
+uLUT.RescaleOnVisibilityChange = 1
 
-# trace defaults for the display properties.
-fDisplay.Representation = 'Surface'
-fDisplay.ColorArrayName = ['POINTS', 'U']
-fDisplay.SetScaleArray = ['POINTS', 'U']
-fDisplay.ScaleTransferFunction = 'PiecewiseFunction'
-fDisplay.OpacityArray = ['POINTS', 'U']
-fDisplay.OpacityTransferFunction = 'PiecewiseFunction'
-fDisplay.LookupTable = uLUT
-# init the 'PiecewiseFunction' selected for 'ScaleTransferFunction'
-fDisplay.ScaleTransferFunction.Points = [0.14830323427621842, 0.0, 0.5, 0.0, 0.9988113230834544, 1.0, 0.5, 0.0]
+#clip = Clip(registrationName="clip1", Input=producer)
+#clip.ClipType = 'Plane'
+#clip.Scalars = ['POINTS', 'V']
+#clip.Value = 0.3
+#clip.ClipType.Origin = [1.5, 1.5, 1.5]
+#clip.ClipType.Normal = [0.0, 1.0, 0.0]
+#
+#clipDisplay = Show(clip, renderView1, 'GeometryRepresentation')
+#
+#clipDisplay.Representation = 'Surface'
+#clipDisplay.ColorArrayName = ['POINTS', 'V']
 
-
-uLUTColorBar = GetScalarBar(uLUT, renderView1)
-uLUTColorBar.Title = 'U'
-uLUTColorBar.ComponentTitle = ''
-
-# show color legend
-fDisplay.SetScalarBarVisibility(renderView1, True)
 
 contour1 = Contour(registrationName='Contour1', Input=producer)
-contour1.ContourBy = ['POINTS', 'U']
-contour1.Isosurfaces = [0.3]
+contour1.ContourBy = ['POINTS', 'V']
+contour1.Isosurfaces = [0.1, 0.3, 0.5, 0.7]
 contour1.PointMergeMethod = 'Uniform Binning'
 
 contour1Display = Show(contour1, renderView1, 'GeometryRepresentation')
 
 contour1Display.Representation = 'Surface'
-contour1Display.ColorArrayName = ['POINTS', 'U']
+contour1Display.ColorArrayName = ['POINTS', 'V']
 
 Hide(producer, renderView1)
 
-#clip = Clip(registrationName="clip1", Input=producer)
-#clip.ClipType = 'Plane'
-#clip.Scalars = ['POINTS', 'U']
-#clip.ClipType.Origin = [1.5, 1.5, 1.5]
-#clip.ClipType.Normal = [0.0, 1.0, 0.0]
+# trace defaults for the display properties.
+contour1Display.Representation = 'Surface'
+contour1Display.ColorArrayName = ['POINTS', 'V']
+contour1Display.SetScaleArray = ['POINTS', 'V']
+contour1Display.ScaleTransferFunction = 'PiecewiseFunction'
+contour1Display.LookupTable = uLUT
+
+
+uLUTColorBar = GetScalarBar(uLUT, renderView1)
+uLUTColorBar.Title = 'V'
+uLUTColorBar.ComponentTitle = ''
+
+# show color legend
+contour1Display.SetScalarBarVisibility(renderView1, True)
 
 # ----------------------------------------------------------------
 # setup extractors
@@ -97,7 +100,7 @@ pNG1.Writer.Format = 'PNG'
 
 # ----------------------------------------------------------------
 # restore active source
-SetActiveSource(pNG1)
+#SetActiveSource(pNG1)
 # ----------------------------------------------------------------
 
 # ------------------------------------------------------------------------------
@@ -115,20 +118,19 @@ print_info("begin '%s'", __name__)
 
 def catalyst_execute(info):
     print_info("in '%s::catalyst_execute'", __name__)
+    global producer
+    #producer.UpdatePipeline()
+    #global clip
+    #clip.UpdatePipeline()
     global contour1
     contour1.UpdatePipeline()
-    #global fDisplay
-    #ColorBy(fDisplay, ('POINTS', 'U'))
-    #fDisplay.RescaleTransferFunctionToDataRange(False, True)
-    #fDisplay.RescaleTransferFunctionToDataRange(True, False)
-    #clip.UpdatePipeline()
-    #print("updating pipeline and saving image")
+    global contour1Display
+    contour1Display.RescaleTransferFunctionToDataRange()
 
     #print("-----------------------------------")
-    #print("executing (cycle={}, time={})".format(info.cycle, info.time))
-    #print("bounds:", producer.GetDataInformation().GetBounds())
+    print_info("executing (cycle={}, time={})".format(info.cycle, info.time))
     #print("U-range:", producer.PointData['U'].GetRange(0))
-    #print("V-range:", producer.PointData['V'].GetRange(0))
+    print_info("V-range: {}".format(producer.PointData['V'].GetRange(0)))
 
 
 # ------------------------------------------------------------------------------
