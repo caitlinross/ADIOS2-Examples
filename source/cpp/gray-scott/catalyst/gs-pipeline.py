@@ -1,6 +1,9 @@
+import argparse
 from paraview.simple import *
 
 from paraview import print_info
+
+DISABLE_EXTRACTOR = False
 
 # ------------------------------------------------------------------------------
 # Catalyst options
@@ -44,9 +47,18 @@ def SetupCatalystProducer():
 
 # this returns the fides proxy which should be used for post hoc vis
 # i.e., you're reading .bp files
-def SetupFidesReader():
-    # TODO
-    return FidesReader(FileName="")
+def SetupFidesReader(json, bp):
+    if json is None:
+        # in this case the bp file must contain the Fides attributes
+        fides = FidesReader(StreamSteps=1, FileName=bp)
+        return fides
+
+    fides = FidesJSONReader(StreamSteps=1, FileName=json)
+    # 'source' is the name of the ADIOS data source in the JSON data model
+    fides.DataSourcePath = ['source', bp]
+    # required to update the fides reader
+    fides.UpdatePipelineInformation()
+    return fides
 
 
 # takes in a producer and view and sets up the visualization pipeline
@@ -114,18 +126,60 @@ def catalyst_execute(info):
     print_info("V-range: {}".format(producer.PointData['V'].GetRange(0)))
 
 
+def ParseArgs():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-j", "--json_filename", help="path to Fides JSON file", type=str, required=False)
+    parser.add_argument("-b", "--bp_filename", help="path to bp file", type=str, required=True)
+    args = parser.parse_args()
+    return args
+
+
+def PostHocVis(args):
+    # adios/fides step status
+    OK = 0
+    NotReady = 1
+    EndOfStream = 2
+
+    # setup the reader, view, pipeline
+    fides = SetupFidesReader(args.json_filename, args.bp_filename)
+    view = SetupRenderView()
+    pipeline, display = SetupVisPipeline(fides, view)
+
+    step = 0
+    while True:
+        status = NotReady
+        while status == NotReady:
+            # must call PrepareNextStep to get Fides ready to read the
+            # next step
+            fides.PrepareNextStep()
+            fides.UpdatePipelineInformation()
+            status = fides.NextStepStatus
+        if status == EndOfStream:
+            # done reading the file
+            return
+        if step == 0:
+            # set up the pipeline on the first step
+            pipeline, display = SetupVisPipeline(fides, view)
+
+        # need to update the pipeline and then save the output
+        pipeline.UpdatePipeline()
+        display.RescaleTransferFunctionToDataRange()
+        output = f'output-{step:05d}.png'
+        SaveScreenshot(output, view, ImageResolution=[800, 800])
+        step += 1
+
 # ------------------------------------------------------------------------------
 if __name__ == '__main__':
     print('in __main__()')
-    from paraview.simple import SaveExtractsUsingCatalystOptions
-    # Code for non in-situ environments; if executing in post-processing
-    # i.e. non-Catalyst mode, let's generate extracts using Catalyst options
-    SaveExtractsUsingCatalystOptions(options)
-    #TODO for post hoc case
+    args = ParseArgs()
+    PostHocVis(args)
 else:
     # in this case we're running from Catalyst
     view = SetupRenderView()
     producer = SetupCatalystProducer()
     pipeline, display = SetupVisPipeline(producer, view)
 
-    SetupExtractor(view)
+    # normally not needed, but a bug fix is in progress to fix an issue
+    # when using ParaView Live with extractors
+    if not DISABLE_EXTRACTOR:
+        SetupExtractor(view)
